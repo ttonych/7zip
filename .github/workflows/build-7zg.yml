@@ -15,9 +15,9 @@ jobs:
       - name: Setup MSVC Developer Command Prompt (x64)
         uses: ilammy/msvc-dev-cmd@v1
         with:
-          arch: x64
+          arch: x64  # cl, link, ml64, nmake в PATH
 
-      # Быстрая точечная сборка трёх целей.
+      # Точечная сборка трёх целей (быстрее, чем "build all")
       - name: Build 7z.dll (Format7zF)
         working-directory: CPP/7zip/Bundles/Format7zF
         run: nmake /NOLOGO PLATFORM=x64
@@ -30,30 +30,28 @@ jobs:
         working-directory: CPP/7zip/UI/FileManager
         run: nmake /NOLOGO PLATFORM=x64
 
-      # Диагностика: куда сложились файлы
-      - name: Show possible output trees
+      # Диагностика: быстро показать, куда makefile сложил результат
+      - name: Show outputs
         shell: pwsh
         run: |
-          Write-Host "=== Quick trees ==="
-          Get-ChildItem CPP/7zip -Depth 2 -Directory | Select-Object FullName
-          Write-Host "=== Find 7z*.exe and 7z.dll ==="
+          Write-Host "=== Find 7z*.exe and 7z.dll under CPP/7zip ==="
           Get-ChildItem CPP/7zip -Recurse -File -Include 7z*.exe,7z.dll | Select-Object FullName
 
-      # Надёжный сбор артефактов + валидация
+      # Надёжный сбор + валидация: ищем по именам, а не по жёстким путям
       - name: Collect + verify artifacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
 
           $targets = @(
-            @{ find = 'CPP/7zip/UI/GUI/**/7zG.exe'          ; want = '7zG.exe'  },
-            @{ find = 'CPP/7zip/UI/FileManager/**/7zFM.exe' ; want = '7zFM.exe' },
-            @{ find = 'CPP/7zip/Bundles/Format7zF/**/7z.dll'; want = '7z.dll'   }
+            @{ mask = 'CPP/7zip/UI/GUI/**/7zG.exe'          ; want = '7zG.exe'  },
+            @{ mask = 'CPP/7zip/UI/FileManager/**/7zFM.exe' ; want = '7zFM.exe' },
+            @{ mask = 'CPP/7zip/Bundles/Format7zF/**/7z.dll'; want = '7z.dll'   }
           )
 
           $missing = @()
           foreach ($t in $targets) {
-            $hits = Get-ChildItem -Path $t.find -Recurse -File -ErrorAction SilentlyContinue
+            $hits = Get-ChildItem -Path $t.mask -Recurse -File -ErrorAction SilentlyContinue
             if ($hits) {
               $hits | ForEach-Object {
                 Write-Host "FOUND: $($_.FullName)"
@@ -64,12 +62,11 @@ jobs:
             }
           }
 
-          Write-Host "`nDist content:"
+          Write-Host "`n=== dist content ==="
           Get-ChildItem dist | Select-Object Name,Length,LastWriteTime | Format-Table
 
           if ($missing.Count -gt 0) {
-            Write-Error ("Missing artifacts: {0}" -f ($missing -join ', '))
-            exit 2
+            throw "Missing artifacts: $($missing -join ', ')"
           }
 
       - name: Upload artifact (x64)
@@ -77,4 +74,4 @@ jobs:
         with:
           name: 7zip-x64
           path: dist/**
-          if-no-files-found: error
+          if-no-files-found: error  # не молчи, если ничего не нашли
