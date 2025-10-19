@@ -17,7 +17,7 @@ jobs:
         with:
           arch: x64
 
-      # ВАРИАНТ А: точечная сборка трёх целей (быстрее)
+      # Быстрая точечная сборка трёх целей.
       - name: Build 7z.dll (Format7zF)
         working-directory: CPP/7zip/Bundles/Format7zF
         run: nmake /NOLOGO PLATFORM=x64
@@ -30,11 +30,16 @@ jobs:
         working-directory: CPP/7zip/UI/FileManager
         run: nmake /NOLOGO PLATFORM=x64
 
-      # ВАРИАНТ B: собрать всё одной командой (раскомментируйте, а три шага выше закомментируйте)
-      # - name: Build all (x64)
-      #   working-directory: CPP/7zip
-      #   run: nmake /NOLOGO PLATFORM=x64
+      # Диагностика: куда сложились файлы
+      - name: Show possible output trees
+        shell: pwsh
+        run: |
+          Write-Host "=== Quick trees ==="
+          Get-ChildItem CPP/7zip -Depth 2 -Directory | Select-Object FullName
+          Write-Host "=== Find 7z*.exe and 7z.dll ==="
+          Get-ChildItem CPP/7zip -Recurse -File -Include 7z*.exe,7z.dll | Select-Object FullName
 
+      # Надёжный сбор артефактов + валидация
       - name: Collect + verify artifacts
         shell: pwsh
         run: |
@@ -63,8 +68,7 @@ jobs:
           Get-ChildItem dist | Select-Object Name,Length,LastWriteTime | Format-Table
 
           if ($missing.Count -gt 0) {
-            Write-Error ("Missing artifacts: {0}`nHint: search tree for 7z*.exe / 7z.dll:" -f ($missing -join ', '))
-            Get-ChildItem CPP/7zip -Recurse -File -Include 7z*.exe,7z.dll | Select-Object FullName
+            Write-Error ("Missing artifacts: {0}" -f ($missing -join ', '))
             exit 2
           }
 
@@ -73,3 +77,4 @@ jobs:
         with:
           name: 7zip-x64
           path: dist/**
+          if-no-files-found: error
