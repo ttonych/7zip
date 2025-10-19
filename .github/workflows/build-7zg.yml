@@ -1,0 +1,45 @@
+name: Build 7-Zip (x64)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-x64:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC Dev Cmd (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # Вариант: точечная сборка нужных целей
+      - name: Build 7z.dll (Format7zF, x64)
+        working-directory: CPP/7zip/Bundles/Format7zF
+        run: nmake /NOLOGO PLATFORM=x64
+
+      - name: Build 7zG.exe (GUI, x64)
+        working-directory: CPP/7zip/UI/GUI
+        run: nmake /NOLOGO PLATFORM=x64
+
+      - name: Build 7zFM.exe (File Manager, x64)
+        working-directory: CPP/7zip/UI/FileManager
+        run: nmake /NOLOGO PLATFORM=x64
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item -Force "CPP/7zip/UI/GUI/O/*.exe"           dist -ErrorAction SilentlyContinue   # 7zG.exe
+          Copy-Item -Force "CPP/7zip/UI/FileManager/O/*.exe"   dist -ErrorAction SilentlyContinue   # 7zFM.exe
+          Copy-Item -Force "CPP/7zip/Bundles/Format7zF/O/*.dll" dist -ErrorAction SilentlyContinue  # 7z.dll
+
+      - name: Upload artifact (x64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: 7zip-x64
+          path: dist/**
