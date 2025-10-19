@@ -12,31 +12,61 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Setup MSVC Dev Cmd (x64)
+      - name: Setup MSVC Developer Command Prompt (x64)
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
-      # Вариант: точечная сборка нужных целей
-      - name: Build 7z.dll (Format7zF, x64)
+      # ВАРИАНТ А: точечная сборка трёх целей (быстрее)
+      - name: Build 7z.dll (Format7zF)
         working-directory: CPP/7zip/Bundles/Format7zF
         run: nmake /NOLOGO PLATFORM=x64
 
-      - name: Build 7zG.exe (GUI, x64)
+      - name: Build 7zG.exe (GUI)
         working-directory: CPP/7zip/UI/GUI
         run: nmake /NOLOGO PLATFORM=x64
 
-      - name: Build 7zFM.exe (File Manager, x64)
+      - name: Build 7zFM.exe (File Manager)
         working-directory: CPP/7zip/UI/FileManager
         run: nmake /NOLOGO PLATFORM=x64
 
-      - name: Collect artifacts
+      # ВАРИАНТ B: собрать всё одной командой (раскомментируйте, а три шага выше закомментируйте)
+      # - name: Build all (x64)
+      #   working-directory: CPP/7zip
+      #   run: nmake /NOLOGO PLATFORM=x64
+
+      - name: Collect + verify artifacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item -Force "CPP/7zip/UI/GUI/O/*.exe"           dist -ErrorAction SilentlyContinue   # 7zG.exe
-          Copy-Item -Force "CPP/7zip/UI/FileManager/O/*.exe"   dist -ErrorAction SilentlyContinue   # 7zFM.exe
-          Copy-Item -Force "CPP/7zip/Bundles/Format7zF/O/*.dll" dist -ErrorAction SilentlyContinue  # 7z.dll
+
+          $targets = @(
+            @{ find = 'CPP/7zip/UI/GUI/**/7zG.exe'          ; want = '7zG.exe'  },
+            @{ find = 'CPP/7zip/UI/FileManager/**/7zFM.exe' ; want = '7zFM.exe' },
+            @{ find = 'CPP/7zip/Bundles/Format7zF/**/7z.dll'; want = '7z.dll'   }
+          )
+
+          $missing = @()
+          foreach ($t in $targets) {
+            $hits = Get-ChildItem -Path $t.find -Recurse -File -ErrorAction SilentlyContinue
+            if ($hits) {
+              $hits | ForEach-Object {
+                Write-Host "FOUND: $($_.FullName)"
+                Copy-Item -LiteralPath $_.FullName -Destination dist -Force
+              }
+            } else {
+              $missing += $t.want
+            }
+          }
+
+          Write-Host "`nDist content:"
+          Get-ChildItem dist | Select-Object Name,Length,LastWriteTime | Format-Table
+
+          if ($missing.Count -gt 0) {
+            Write-Error ("Missing artifacts: {0}`nHint: search tree for 7z*.exe / 7z.dll:" -f ($missing -join ', '))
+            Get-ChildItem CPP/7zip -Recurse -File -Include 7z*.exe,7z.dll | Select-Object FullName
+            exit 2
+          }
 
       - name: Upload artifact (x64)
         uses: actions/upload-artifact@v4
