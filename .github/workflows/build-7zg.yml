@@ -54,14 +54,20 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
 
           $targets = @(
-            @{ mask = 'CPP/7zip/UI/GUI/**/7zG.exe'          ; want = '7zG.exe'  },
-            @{ mask = 'CPP/7zip/UI/FileManager/**/7zFM.exe' ; want = '7zFM.exe' },
-            @{ mask = 'CPP/7zip/Bundles/Format7zF/**/7z.dll'; want = '7z.dll'   }
+            @{ base = 'CPP/7zip/UI/GUI'          ; filter = '7zG.exe'  ; want = '7zG.exe'  },
+            @{ base = 'CPP/7zip/UI/FileManager'  ; filter = '7zFM.exe' ; want = '7zFM.exe' },
+            @{ base = 'CPP/7zip/Bundles/Format7zF'; filter = '7z.dll'  ; want = '7z.dll'   }
           )
 
           $missing = @()
           foreach ($t in $targets) {
-            $hits = Get-ChildItem -Path $t.mask -Recurse -File -ErrorAction SilentlyContinue
+            if (-not (Test-Path -LiteralPath $t.base)) {
+              Write-Warning "Base path not found: $($t.base)"
+              $missing += $t.want
+              continue
+            }
+
+            $hits = Get-ChildItem -Path $t.base -Filter $t.filter -Recurse -File -ErrorAction SilentlyContinue
             if ($hits) {
               $hits | ForEach-Object {
                 Write-Host "FOUND: $($_.FullName)"
