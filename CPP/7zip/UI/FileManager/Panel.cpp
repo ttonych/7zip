@@ -1034,6 +1034,7 @@ void CPanel::ExtractArchives()
   ::ExtractArchives(paths, outFolder
       , true   // showDialog
       , false  // elimDup
+      , false  // deleteArchive
       , ci.WriteZone
       );
 }
